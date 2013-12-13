@@ -3,95 +3,100 @@
 
 # Vagrantfile API/syntax version. Don't touch unless you know what you're doing!
 VAGRANTFILE_API_VERSION = "2"
-Vagrant.configure("2") do |config|
-
-  # MACHINE_TYPE = {
-  #   :locker => 1,
-  #   :mail =>1,
-  #   :mon => 1,
-  #   :services => 1,
-  #   :solrcloud_master => 2,
-  #   :solrcloud_replica => 1,
-  #   :tracker => 1,
-  #   :vpn => 1,
-  #   :work => 1,
-  #   :www => 3
-  # }
-  MACHINE_TYPE = {
-    :vpn => 1
-  }
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   
-  MACHINE_TYPE.each do |type,nodes|
-    i = 1
-    while i <= nodes
-      node_index = "0#{i}"
-      machine = "#{type}#{node_index}"
-      machines = [machine]
-      i+=1
-      puts "The machines to build are: '#{machines}'"
-      [ machines ].each do |system|
-        config.vm.define machine do |sys|
-          sys.vm.provider :aws do |aws, override|
-            aws.box = "aws-basic"
-            aws.access_key_id = ENV["AWS_ACCESS_KEY_ID"]
-            aws.secret_access_key = ENV["AWS_SECRET_ACCESS_KEY"]
-            aws.keypair_name ="INFRASTRUCTURE"
-            aws.subnet_id ="subnet-47f74929"
-            aws.availability_zone ="us-east-1d"
-            aws.instance_type ="m1.small"
-            # can be unique
-            # TODO: how to get group id (required for VPC) from the group_name
-            aws.security_groups = [ "sg-2d38ee42", "sg-e53fe18a", "sg-d9e23bb6" ]
-            # can be unique
-            aws.ami = "ami-4bb39522"
-            # can be unique
-            aws.elastic_ip = true 
-            override.ssh.private_key_path = ENV["MY_PRIVATE_AWS_SSH_KEY_PATH"]
-            # can be unique
-            override.ssh.username = "ubuntu"
-            override.ssh.timeout = 120
-            override.ssh.max_tries = 10
-            # override.ssh.host = :private_ip
-            aws.tags = {
-              "Name" => machine
-            }
-          end
+  # Build a hash with all the machine types as keys and the desired number of each 
+  # type of machine in an integer. 
+  # MACHINE_TYPE = {
+  #   :vpn => 1
+  # }
+  MACHINE_TYPE = { :hostname => 1 }
 
-          sys.omnibus.chef_version = :latest
-          sys.berkshelf.enabled=true
-          sys.vm.provision :chef_solo do |chef|
-            chef.node_name = machine
-            chef.cookbooks_path = "cookbooks"
-            chef.add_recipe "apt"
-            chef.add_recipe "locale-gen"
-            chef.add_recipe "strongswan::ipsec"
-            chef.add_recipe "strongswan::connections"
-            chef.add_recipe "strongswan::routing"
-            chef.add_recipe "vim"
-            chef.roles_path = "roles"
-            chef.add_role(sys == /vpn[0-9]/ ? 'vpn' : '')
-            chef.json = {
-              localegen:{
-                lang:["en_US","en_US.utf8"]
-              },
-              strongswan: {
-                ipsec: {
-                  natt: "yes",
-                  keyexchange: "ikev2",
-                  scenarios: ["xauth-rsa-mode-config", "xauth-id-psk-mode-config"],
-                  local: {
-                    id: "server@strongswan.org",
-                    subnet: "172.19.0.0/16"
-                  },
-                  remote: {
-                    id: "client@strongswan.org",
-                    sourceip: "172.19.101.0/24"
-                  }
-                }
-              }
-            }
-          end
-        end
+  # create an empty array to hold the hostnames we will generate next.
+  machines = Array.new
+
+  # Iterate through the hash and build hostnames from the keys and values; 
+  # then push to the end of the empty array we just built.
+  MACHINE_TYPE.each_pair do |key,value|
+    i = 1
+    until i > value.to_i
+      node_index = "0#{i}"
+      machine = "#{key}#{node_index}"
+      machines.push(machine)
+      i+=1
+    end
+  end
+  
+  # uncomment the puts statement below to see a list of buildable machines 
+  # via the commandline:
+  # [schade@metis ~/vagrant-multi-machine-base]$ vagrant status hostname01
+  # The buildable machines are: '["hostname01"]'
+  # Current machine states:
+
+  # hostname01                not created (virtualbox)
+
+  # The environment has not yet been created. Run `vagrant up` to
+  # create the environment. If a machine is not created, only the
+  # default provider will be shown. So if a provider is not listed,
+  # then the machine is not created for that environment.
+  # puts "The buildable machines are: '#{machines}'"
+
+  # Now lets build the machines heldp within the array we just populated
+  machines.each do |system|
+    config.vm.define system do |sys|
+
+      # We're using the vagant-aws plugin to build directly on EC2/VPC
+      # vagrant plugin install vagrant-aws
+      sys.vm.provider :aws do |aws, override|
+        aws.box = "aws-basic"
+        aws.access_key_id = ENV["AWS_ACCESS_KEY_ID"]
+        aws.secret_access_key = ENV["AWS_SECRET_ACCESS_KEY"]
+        aws.keypair_name ="<aws_keypair_name_goes_here>"
+        aws.subnet_id ="<aws_subnet_id_goes_here>"
+        aws.availability_zone ="<aws_availability_zone_goes_here>"
+        aws.instance_type ="m1.small"
+
+        # can be unique
+        # TODO: how to get group id (required for VPC) from the group_name
+        # For VPC you must use the Security Group ID number, for EC2 you 
+        # may use the Security Group name. 
+        aws.security_groups = [ 
+          "<aws_group_id_goes_here>", 
+          "<aws_group_id_goes_here>", 
+          "<aws_group_id_goes_here>" 
+        ]
+
+        # can be unique; I tend to use ami-4bb39522 for my purposes.
+        aws.ami = "<aws_ami_goes_here>"
+
+        # can be unique
+        aws.elastic_ip = true
+        override.ssh.private_key_path = ENV["MY_PRIVATE_AWS_SSH_KEY_PATH"]
+      
+        # can be unique; ubuntu uses ubuntu redhat/centos use ec2-user
+        override.ssh.username = "ubuntu"
+        override.ssh.timeout = 120
+        override.ssh.max_tries = 10
+
+        # override.ssh.host = :private_ip
+        aws.tags = {
+          "Name" => system
+        }
+      end
+
+      # Use latest version of whichever chef provisioner you chose to use
+      # vagrant plugin install vagrant-omnibus
+      sys.omnibus.chef_version = :latest
+
+      # Please do yourself a favor and use berkshelf for cookbook resolution.
+      # vagrant plugin install vagrant-berkshelf
+      sys.berkshelf.enabled=true
+      sys.vm.provision :chef_solo do |chef|
+        chef.node_name = system
+        chef.cookbooks_path = "cookbooks"
+        chef.add_recipe "vim"
+        # chef.add_role(sys == /hostname[0-9]/ ? 'hostname' : '')
+        chef.json = {}
       end
     end
   end
