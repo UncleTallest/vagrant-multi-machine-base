@@ -41,14 +41,18 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   # then the machine is not created for that environment.
   # puts "The buildable machines are: '#{machines}'"
 
-  # Now lets build the machines heldp within the array we just populated
+  # Now lets build the machines held within the array we just populated
   machines.each do |system|
-    config.vm.define system do |sys|
+    ending = "_config"
+    sys = system[0...-2]
+    sys_config = sys.to_s+ending
+    # p sys_config
+    config.vm.define system do |sys_config|
+      sys_config.vm.box = "aws-basic"
 
       # We're using the vagant-aws plugin to build directly on EC2/VPC
       # vagrant plugin install vagrant-aws
-      sys.vm.provider :aws do |aws, override|
-        aws.box = "aws-basic"
+      sys_config.vm.provider :aws do |aws, override|
         aws.access_key_id = ENV["AWS_ACCESS_KEY_ID"]
         aws.secret_access_key = ENV["AWS_SECRET_ACCESS_KEY"]
         aws.keypair_name ="<aws_keypair_name_goes_here>"
@@ -86,12 +90,12 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
       # Use latest version of whichever chef provisioner you chose to use
       # vagrant plugin install vagrant-omnibus
-      sys.omnibus.chef_version = :latest
+      sys_config.omnibus.chef_version = :latest
 
       # Please do yourself a favor and use berkshelf for cookbook resolution.
       # vagrant plugin install vagrant-berkshelf
-      sys.berkshelf.enabled=true
-      sys.vm.provision :chef_solo do |chef|
+      sys_config.berkshelf.enabled=true
+      sys_config.vm.provision :chef_solo do |chef|
         chef.node_name = system
         chef.cookbooks_path = "cookbooks"
         chef.add_recipe "vim"
