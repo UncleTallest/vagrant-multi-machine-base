@@ -46,7 +46,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     ending = "_config"
     sys = system[0...-2]
     sys_config = sys.to_s+ending
-    # p sys_config
+    # Loop through the boxen to be built and build them
     config.vm.define system do |sys_config|
       sys_config.vm.box = "aws-basic"
 
@@ -79,8 +79,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       
         # can be unique; ubuntu uses ubuntu redhat/centos use ec2-user
         override.ssh.username = "ubuntu"
-        override.ssh.timeout = 120
-        override.ssh.max_tries = 10
 
         # override.ssh.host = :private_ip
         aws.tags = {
@@ -99,7 +97,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         chef.node_name = system
         chef.cookbooks_path = "cookbooks"
         chef.add_recipe "vim"
-        # chef.add_role(sys == /hostname[0-9]/ ? 'hostname' : '')
+        chef.add_role(sys_config)
         chef.json = {}
       end
     end
